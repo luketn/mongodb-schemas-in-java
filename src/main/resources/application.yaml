@@ -18,3 +18,9 @@ server:
 spring:
     jackson:
       default-property-inclusion: non_null
+
+mongodb-schema:
+  dataaccess:
+    mongodb:
+      connectionString: mongodb://localhost:27017
+      database-name: example
