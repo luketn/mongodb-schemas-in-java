@@ -1,0 +1,22 @@
+server:
+  servlet:
+    encoding:
+      enabled: true
+      charset: utf-8
+
+    # disable sessions
+    session:
+      cookie:
+        name: ""
+      persistent: false
+      timeout: 0
+
+  tomcat:
+    accesslog:
+      enabled: true
+
+spring:
+    session:
+      store-type: none
+    jackson:
+      default-property-inclusion: non_null

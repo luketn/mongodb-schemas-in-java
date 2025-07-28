@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Path("/health")
-public class Health {
+public class HealthApi {
     @GET
     @Produces("text/plain")
     public String check() {
