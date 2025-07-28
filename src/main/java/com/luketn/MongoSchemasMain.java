@@ -19,7 +19,6 @@ public class MongoSchemasMain {
 
         //These properties are important, should not be overridden and must be set before the application starts
         app.setDefaultProperties(Map.of(
-                "spring.jersey.type", "filter",
                 "spring.threads.virtual.enabled", true
         ));
 
