@@ -1,4 +1,5 @@
 server:
+  port: 8086
   servlet:
     encoding:
       enabled: true
@@ -23,4 +24,4 @@ mongodb-schema:
   dataaccess:
     mongodb:
       connectionString: mongodb://localhost:27017
-      database-name: example
+      database-name: sample_weatherdata
