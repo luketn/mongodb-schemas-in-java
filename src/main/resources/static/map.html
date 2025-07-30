@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Sea Surface Temperatures Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" crossorigin="" />
+    <style>
+        #map1 { height: 600px; width: 100%; }
+        #controls { margin: 10px 0; }
+        .datepicker { margin-right: 10px; }
+    </style>
+</head>
+<body>
+<div id="controls">
+    <label>From: <input type="date" id="fromDate" class="datepicker"></label>
+    <label>To: <input type="date" id="toDate" class="datepicker"></label>
+    <button id="refreshBtn">Refresh</button>
+</div>
+<div id="map1"></div>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
+<script>
+    // --- Map setup ---
+    var mymap = L.map("map1").setView([53.3899, -1.4678], 6);
+    L.tileLayer(
+      "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
+      {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 18,
+        id: "mapbox/streets-v11",
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: "pk.eyJ1IjoiY29kZXBvcGUiLCJhIjoiY2tla2kxMWZ6MmdhczJybHR3YzZ1NHk1ZSJ9.zPt2svkniV_VqE9VS9xqjw",
+      }
+    ).addTo(mymap);
+
+    var markersLayer = L.layerGroup().addTo(mymap);
+
+    // --- Helper: format date to ISO string (yyyy-mm-ddTHH:MM:SSZ) ---
+    function toISOStringLocal(date) {
+      if (!date) return null;
+      const d = new Date(date);
+      return d.toISOString();
+    }
+
+    // --- SSE fetch and marker update ---
+    var currentSSE = null;
+    function fetchSeaTemps() {
+      // Remove old markers
+      markersLayer.clearLayers();
+      // Abort previous SSE if any
+      if (currentSSE) currentSSE.close();
+
+      // Get map center and radius (in meters)
+      var center = mymap.getCenter();
+      var bounds = mymap.getBounds();
+      var radius = center.distanceTo(bounds.getNorthEast());
+
+      // Get date range
+      var fromDate = document.getElementById('fromDate').value;
+      var toDate = document.getElementById('toDate').value;
+
+      // Build query string
+      var params = [];
+      if (fromDate) params.push("fromDate=" + encodeURIComponent(toISOStringLocal(fromDate)));
+      if (toDate) params.push("toDate=" + encodeURIComponent(toISOStringLocal(toDate)));
+      params.push("latitude=" + center.lat);
+      params.push("longitude=" + center.lng);
+      params.push("metersRadius=" + Math.round(radius));
+      var url = "/weather/sea/temperature?" + params.join("&");
+
+      // Open SSE connection
+      currentSSE = new EventSource(url);
+      currentSSE.onmessage = function(event) {
+        // Each event is a JSON array of SeaTemperature objects
+        var temps = JSON.parse(event.data);
+        temps.forEach(function(t) {
+          var marker = L.circleMarker([t.lat, t.lon], {
+            radius: 6,
+            fillColor: getColor(t.temp),
+            color: "#333",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          }).bindPopup("Temp: " + t.temp.toFixed(2) + "°C");
+          markersLayer.addLayer(marker);
+        });
+      };
+      currentSSE.onerror = function() {
+        currentSSE.close();
+      };
+    }
+
+    // --- Color scale for temperature ---
+    function getColor(temp) {
+      // Simple blue (cold) to red (hot) scale
+      var min = 0, max = 30;
+      var pct = Math.max(0, Math.min(1, (temp - min) / (max - min)));
+      var r = Math.round(255 * pct);
+      var b = Math.round(255 * (1 - pct));
+      return "rgb(" + r + ",50," + b + ")";
+    }
+
+    // --- Event handlers ---
+    document.getElementById('refreshBtn').onclick = fetchSeaTemps;
+    mymap.on('moveend', fetchSeaTemps);
+
+    // --- Initial load ---
+    fetchSeaTemps();
+</script>
+</body>
+</html>
+
