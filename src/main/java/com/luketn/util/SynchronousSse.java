@@ -12,7 +12,11 @@ public class SynchronousSse {
 
     private final HttpServletResponse response;
 
-    public SynchronousSse(HttpServletResponse response) {
+    public static SynchronousSse forResponse(HttpServletResponse response) {
+        return new SynchronousSse(response);
+    }
+
+    private SynchronousSse(HttpServletResponse response) {
         this.response = response;
         response.setStatus(200);
         response.setCharacterEncoding("UTF-8");
