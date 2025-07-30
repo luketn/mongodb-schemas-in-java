@@ -98,8 +98,8 @@ public class WeatherDataAccess {
         MongoCollection<WeatherReport> collection = database.getCollection("data", WeatherReport.class);
 
         List<Bson> filters = new ArrayList<>();
-        filters.add(exists("seaSurfaceTemperature.value"));
         filters.add(exists("position.coordinates"));
+        filters.add(exists("seaSurfaceTemperature.value"));
         if (from != null) {
             filters.add(gte("ts", from));
         }
