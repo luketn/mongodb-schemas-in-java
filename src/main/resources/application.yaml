@@ -23,5 +23,5 @@ spring:
 mongodb-schema:
   dataaccess:
     mongodb:
-      connectionString: mongodb://localhost:27017
+      connection-string: mongodb://localhost:27017
       database-name: sample_weatherdata

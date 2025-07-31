@@ -4,4 +4,6 @@
 
     <logger name="com.mongodb" level="ERROR" />
     <logger name="org.mongodb" level="ERROR" />
+
+    <logger name="com.luketn.dataaccess.mongodb.WeatherDataAccess" level="INFO" />
 </configuration>

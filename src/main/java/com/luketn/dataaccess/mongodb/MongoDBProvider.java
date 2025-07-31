@@ -27,7 +27,7 @@ public class MongoDBProvider {
     private MongoDatabase mongoDatabase;
 
     public MongoDBProvider(
-            @Value("${mongodb-schema.dataaccess.mongodb.connectionString}") String connectionString,
+            @Value("${mongodb-schema.dataaccess.mongodb.connection-string}") String connectionString,
             @Value("${mongodb-schema.dataaccess.mongodb.database-name}") String databaseName) {
         this.connectionString = connectionString;
         this.databaseName = databaseName;

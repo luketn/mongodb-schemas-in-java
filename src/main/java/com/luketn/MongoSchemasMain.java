@@ -27,5 +27,6 @@ public class MongoSchemasMain {
         int port = runningAppContext.getEnvironment().getProperty("server.port", Integer.class, 8080);
         String contextPath = runningAppContext.getEnvironment().getProperty("server.servlet.context-path", "");
         log.info("Mongo Schemas Demo API is running! (http://localhost:{}{}/health)", port, contextPath);
+        log.info("Try out the map view: http://localhost:{}{}/)", port, contextPath);
     }
 }

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Sea Surface Temperatures Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" crossorigin="" />
+    <style>
+        body {
+            background: #f4f7fa;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        #map1 {
+            height: 600px;
+            width: 98vw;
+            max-width: 1200px;
+            margin: 0 auto 32px auto;
+            border-radius: 14px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            border: 1px solid #e3e8ee;
+        }
+        @media (max-width: 700px) {
+            #map1 {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="map1"></div>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
+<script>
+    // --- Map setup ---
+    var defaultCenter = [53.3899, -1.4678];
+    var defaultZoom = 6;
+    var mymap = L.map("map1", {
+        // maxBounds: [[-90, -180], [90, 180]],
+        // maxBoundsViscosity: 1.0
+    })
+    L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(mymap);
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(mymap);
+
+    var markersLayer = L.layerGroup().addTo(mymap);
+
+    // --- SSE fetch and marker update ---
+    var currentSSE = null;
+    function fetchSeaTemps() {
+      // Remove old markers
+      markersLayer.clearLayers();
+      // Abort previous SSE if any
+      if (currentSSE) currentSSE.close();
+
+      function normalizeLongitude(lng) {
+          return lng;
+
+          if (lng > 179.999999) {
+              return 179.999999;
+          }
+          if (lng < -179.999999) {
+              return -179.999999;
+          }
+          return lng;
+      }
+      function normalizeLatitude(lat) {
+          return lat;
+
+          if (lat > 89.999999) {
+              return 89.999999;
+          }
+          if (lat < -89.999999) {
+              return -89.999999;
+          }
+          return lat;
+      }
+
+      function getNormalizedBounds(map) {
+          const bounds = map.getBounds();
+          return {
+              north: normalizeLatitude(bounds.getNorth()),
+              south: normalizeLatitude(bounds.getSouth()),
+              east: normalizeLongitude(bounds.getEast()),
+              west: normalizeLongitude(bounds.getWest())
+          };
+      }
+
+      const bounds = getNormalizedBounds(mymap);
+
+      // Build query string
+      var params = [];
+      params.push("queryType=BoundingBox");
+      params.push("south=" + bounds.south);
+      params.push("west=" + bounds.west);
+      params.push("north=" + bounds.north);
+      params.push("east=" + bounds.east);
+      var url = "/weather/sea/temperature?" + params.join("&");
+
+      // Open SSE connection
+      currentSSE = new EventSource(url);
+      currentSSE.onmessage = function(event) {
+        // Each event is a JSON array of SeaTemperature objects
+        var temps = JSON.parse(event.data);
+        temps.forEach(function(t) {
+          var marker = L.circleMarker([t.lat, t.lon], {
+            radius: 6,
+            fillColor: getColor(t.temp),
+            color: "#333",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          }).bindPopup("Temp: " + t.temp.toFixed(2) + "°C");
+          markersLayer.addLayer(marker);
+        });
+      };
+      currentSSE.onerror = function() {
+        currentSSE.close();
+      };
+    }
+
+    // --- Color scale for temperature ---
+    function getColor(temp) {
+      // Simple blue (cold) to red (hot) scale
+      var min = 0, max = 30;
+      var pct = Math.max(0, Math.min(1, (temp - min) / (max - min)));
+      var r = Math.round(255 * pct);
+      var b = Math.round(255 * (1 - pct));
+      return "rgb(" + r + ",50," + b + ")";
+    }
+
+    mymap.on('moveend', function() {
+      fetchSeaTemps();
+    });
+
+    // --- Initial load ---
+
+    // Try to get user's location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {
+                var lat = pos.coords.latitude;
+                var lon = pos.coords.longitude;
+                mymap.setView([lat, lon], defaultZoom);
+                fetchSeaTemps();
+            },
+            function(error) {
+                mymap.setView(defaultCenter, defaultZoom);
+                fetchSeaTemps();
+            }
+        );
+    } else {
+        mymap.setView(defaultCenter, defaultZoom);
+        fetchSeaTemps();
+    }
+
+</script>
+</body>
+</html>

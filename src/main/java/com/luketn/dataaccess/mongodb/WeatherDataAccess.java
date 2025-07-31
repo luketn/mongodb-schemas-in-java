@@ -1,19 +1,27 @@
 package com.luketn.dataaccess.mongodb;
 
-import com.luketn.datamodel.mongodb.SeaTemperature;
+import com.luketn.seatemperature.datamodel.SeaTemperature;
 import com.luketn.datamodel.mongodb.WeatherReport;
 import com.luketn.datamodel.mongodb.WeatherReportSummary;
 import com.luketn.datamodel.mongodb.WeatherReportSummaryList;
+import com.luketn.seatemperature.datamodel.BoundingBox;
+import com.luketn.seatemperature.datamodel.DistanceFromCentre;
+import com.luketn.seatemperature.datamodel.SeaTemperatureFilter;
+import com.mongodb.ExplainVerbosity;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Facet;
+import com.mongodb.client.model.geojson.Polygon;
+import com.mongodb.client.model.geojson.Position;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.bson.json.JsonWriterSettings;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -23,6 +31,10 @@ import static com.mongodb.client.model.Filters.*;
 
 @Component
 public class WeatherDataAccess {
+    public static final int RADIUS_OF_EARTH_METERS = 637_810;
+    public static final String COLLECTION_NAME = "data";
+    private static Logger log = LoggerFactory.getLogger(WeatherDataAccess.class);
+
     private static final int pageSize = 10;
 
     private final MongoDBProvider mongoDBProvider;
@@ -33,29 +45,15 @@ public class WeatherDataAccess {
 
     public WeatherReport getReport(String id) {
         MongoDatabase database = mongoDBProvider.getMongoDatabase();
-        MongoCollection<WeatherReport> collection = database.getCollection("data", WeatherReport.class);
+        MongoCollection<WeatherReport> collection = database.getCollection(COLLECTION_NAME, WeatherReport.class);
         return collection.find(new Document("_id", new ObjectId(id))).first();
     }
 
-    public WeatherReportSummaryList listReports(Instant from, Instant to, int page) {
+    public WeatherReportSummaryList listReports(int page) {
         MongoDatabase database = mongoDBProvider.getMongoDatabase();
-        MongoCollection<WeatherReportSummaryAggregate> collection = database.getCollection("data", WeatherReportSummaryAggregate.class);
+        MongoCollection<WeatherReportSummaryAggregate> collection = database.getCollection(COLLECTION_NAME, WeatherReportSummaryAggregate.class);
 
-        Bson filter;
-        if (from != null && to != null) {
-            filter = and(
-                    gte("ts", from),
-                    lte("ts", to)
-            );
-        } else if (from != null) {
-            filter = gte("ts", from);
-        } else if (to != null) {
-            filter = lte("ts", to);
-        } else {
-            filter = new Document(); // No filter, match all
-        }
         WeatherReportSummaryAggregate result = collection.aggregate(List.of(
-                        match(filter),
                         facet(
                                 new Facet("reports", List.of(
                                         skip(page * pageSize),
@@ -93,49 +91,112 @@ public class WeatherDataAccess {
         public record Summary(Integer count) {}
     }
 
-    public void streamSeaTemperatures(Instant from, Instant to, Double longitude, Double latitude, Double metersRadius, Consumer<List<SeaTemperature>> batchConsumer) {
+    public void streamSeaTemperatures(SeaTemperatureFilter seaTemperatureFilter, Consumer<List<WeatherReport>> batchConsumer) {
         MongoDatabase database = mongoDBProvider.getMongoDatabase();
-        MongoCollection<WeatherReport> collection = database.getCollection("data", WeatherReport.class);
+        MongoCollection<WeatherReport> collection = database.getCollection(COLLECTION_NAME, WeatherReport.class);
 
-        List<Bson> filters = new ArrayList<>();
-        filters.add(exists("position.coordinates"));
-        filters.add(exists("seaSurfaceTemperature.value"));
-        if (from != null) {
-            filters.add(gte("ts", from));
+        Bson filter = seaTemperatureFilter == null ? new Document() : switch (seaTemperatureFilter) {
+            case BoundingBox boundingBox -> {
+                // Normalize coordinates to handle Leaflet's infinite panning
+                double normalizedEast = normalizeLongitude(boundingBox.east());
+                double normalizedWest = normalizeLongitude(boundingBox.west());
+                double clampedNorth = Math.max(-90, Math.min(90, boundingBox.north()));
+                double clampedSouth = Math.max(-90, Math.min(90, boundingBox.south()));
+
+                // Check if bounding box crosses the International Date Line
+                if (normalizedWest > normalizedEast) {
+                    // Crosses date line - split into two queries
+                    if (log.isDebugEnabled()) {
+                        log.debug("Bounding box crosses International Date Line: west={}, east={}", normalizedWest, normalizedEast);
+                    }
+
+                    Bson westSide = geoWithin("position", new Polygon(List.of(
+                            new Position(normalizedWest, clampedSouth),
+                            new Position(180.0, clampedSouth),
+                            new Position(180.0, clampedNorth),
+                            new Position(normalizedWest, clampedNorth),
+                            new Position(normalizedWest, clampedSouth)
+                    )));
+
+                    Bson eastSide = geoWithin("position", new Polygon(List.of(
+                            new Position(-180.0, clampedSouth),
+                            new Position(normalizedEast, clampedSouth),
+                            new Position(normalizedEast, clampedNorth),
+                            new Position(-180.0, clampedNorth),
+                            new Position(-180.0, clampedSouth)
+                    )));
+
+                    yield or(westSide, eastSide);
+                } else {
+                    // Normal bounding box - doesn't cross date line
+                    yield geoWithin("position", new Polygon(List.of(
+                            new Position(normalizedWest, clampedSouth),
+                            new Position(normalizedEast, clampedSouth),
+                            new Position(normalizedEast, clampedNorth),
+                            new Position(normalizedWest, clampedNorth),
+                            new Position(normalizedWest, clampedSouth)
+                    )));
+                }
+            }
+            case DistanceFromCentre distanceFromCentre -> {
+                // Normalize coordinates for center point as well
+                double normalizedLongitude = normalizeLongitude(distanceFromCentre.longitude());
+                double clampedLatitude = Math.max(-90, Math.min(90, distanceFromCentre.latitude()));
+
+                yield geoWithinCenterSphere("position",
+                        normalizedLongitude, clampedLatitude,
+                        distanceFromCentre.metersRadius() / RADIUS_OF_EARTH_METERS);
+            }
+            default -> throw new IllegalArgumentException("Unsupported SeaTemperatureFilter type: " + seaTemperatureFilter.getClass().getName());
+        };
+
+        Document projection = new Document()
+                .append("_id", 0)
+                .append("position.coordinates", 1)
+                .append("seaSurfaceTemperature.value", 1);
+
+
+        if (log.isTraceEnabled()) {
+            Document explain = collection
+                    .find(filter)
+                    .projection(projection)
+                    .explain(ExplainVerbosity.EXECUTION_STATS);
+            log.trace("MongoDB explain plan for sea surface temperature query:\n{}", explain.toJson(JsonWriterSettings.builder().indent(true).build()));
         }
-        if (to != null) {
-            filters.add(lte("ts", to));
-        }
-        if (longitude != null && latitude != null && metersRadius != null) {
-            filters.add(geoWithinCenterSphere("position.coordinates", longitude, latitude, metersRadius / 6371000.0)); // Radius in radians
-        }
-        Bson filter = and(filters);
 
         try (MongoCursor<WeatherReport> temperaturesRawCursor = collection
                 .find(filter)
-                .projection(new Document()
-                        .append("_id", 0)
-                        .append("position.coordinates", 1)
-                        .append("seaSurfaceTemperature.value", 1)
-                )
+                .projection(projection)
                 .batchSize(10)
                 .cursor()) {
 
-            List<SeaTemperature> batch = new ArrayList<>();
+            List<WeatherReport> batch = new ArrayList<>();
             while (temperaturesRawCursor.hasNext()) {
                 WeatherReport weatherReport = temperaturesRawCursor.next();
-                SeaTemperature seaTemperature = new SeaTemperature(
-                        weatherReport.position().coordinates().get(0),
-                        weatherReport.position().coordinates().get(1),
-                        weatherReport.seaSurfaceTemperature().value()
-                );
-                batch.add(seaTemperature);
+                batch.add(weatherReport);
 
                 if (batch.size() >= pageSize) {
                     batchConsumer.accept(new ArrayList<>(batch));
                     batch.clear();
                 }
             }
+            if (!batch.isEmpty()) {
+                batchConsumer.accept(new ArrayList<>(batch));
+            }
         }
+    }
+    /**
+     * Normalizes longitude to the valid range [-180, 180]
+     * Handles Leaflet's infinite horizontal panning
+     */
+    private double normalizeLongitude(double longitude) {
+        // Handle multiple wraps around the world
+        longitude = longitude % 360;
+        if (longitude > 180) {
+            longitude -= 360;
+        } else if (longitude < -180) {
+            longitude += 360;
+        }
+        return longitude;
     }
 }

@@ -1,4 +1,4 @@
-package com.luketn.datamodel.mongodb;
+package com.luketn.seatemperature.datamodel;
 
 /**
  * Represents sea temperature data at a specific latitude and longitude.
