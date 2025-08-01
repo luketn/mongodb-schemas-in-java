@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Welcome
+echo "Welcome to MongoDB Schemas in Java!"
+echo "To get started, please ensure you have the following prerequisites installed:"
+echo "- Java Development Kit (JDK) 24"
+echo "- Apache Maven"
+echo "- MongoDB Atlas account (optional, for remote connection)"
+echo "- MongoDB installed locally (optional, for local connection)"
+echo "The MonogoDB sample database 'sample-weather' loaded in MongoDB (see https://www.mongodb.com/docs/guides/atlas/sample-data/)."
 # Prompt the user to enter the MongoDB connection string
 read -p "Enter your MongoDB Atlas connection string (skip to run local): " MONGODB_CONN_STRING
 
@@ -14,4 +22,4 @@ export MONGODB_CONNECTION_STRING="$MONGODB_CONN_STRING"
 
 # Run the Spring Boot application using Maven
 echo "Running Spring Boot application with MONGODB_CONNECTION_STRING..."
-mvn spring-boot:run
+mvn -q spring-boot:run

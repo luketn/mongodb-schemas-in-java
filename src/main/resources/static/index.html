@@ -27,9 +27,43 @@
                 height: 350px;
             }
         }
+
+        .header-bar {
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            padding: 32px 0 16px 0;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+        .header-bar h1 {
+            margin: 0;
+            font-size: 2.2rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            color: #2a3b4d;
+        }
+        .header-bar .buyline {
+            margin-top: 8px;
+            font-size: 1.1rem;
+            color: #4a5a6a;
+            font-weight: 400;
+        }
+        .header-bar .buyline a {
+            text-decoration: none;
+            color: #2a7ae2;
+            transition: color 0.2s;
+        }
+        .header-bar .buyline a:hover {
+            color: #e26a2a;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
+<div class="header-bar">
+    <h1>MongoDB Schemas in Java</h1>
+    <div class="buyline">Demonstration using MongoDB sample database '<a href="https://www.mongodb.com/docs/guides/atlas/sample-data/">sample-weather</a>'</div>
+</div>
 <div id="map1"></div>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
 <script>
