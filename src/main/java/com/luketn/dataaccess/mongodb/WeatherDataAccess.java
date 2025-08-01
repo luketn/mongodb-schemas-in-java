@@ -1,19 +1,13 @@
 package com.luketn.dataaccess.mongodb;
 
-import com.luketn.seatemperature.datamodel.SeaTemperature;
 import com.luketn.datamodel.mongodb.WeatherReport;
 import com.luketn.datamodel.mongodb.WeatherReportSummary;
 import com.luketn.datamodel.mongodb.WeatherReportSummaryList;
 import com.luketn.seatemperature.datamodel.BoundingBox;
-import com.luketn.seatemperature.datamodel.DistanceFromCentre;
-import com.luketn.seatemperature.datamodel.SeaTemperatureFilter;
 import com.mongodb.ExplainVerbosity;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Facet;
-import com.mongodb.client.model.geojson.Polygon;
-import com.mongodb.client.model.geojson.Position;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.bson.json.JsonWriterSettings;
@@ -22,8 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import static com.mongodb.client.model.Aggregates.*;
@@ -31,9 +25,9 @@ import static com.mongodb.client.model.Filters.*;
 
 @Component
 public class WeatherDataAccess {
-    public static final int RADIUS_OF_EARTH_METERS = 637_810;
+    private static final Logger log = LoggerFactory.getLogger(WeatherDataAccess.class);
+
     public static final String COLLECTION_NAME = "data";
-    private static Logger log = LoggerFactory.getLogger(WeatherDataAccess.class);
 
     private static final int pageSize = 10;
 
@@ -72,7 +66,7 @@ public class WeatherDataAccess {
                 )
         ).first();
 
-        Integer totalReportsMatched = result.summary().getFirst().count();
+        Integer totalReportsMatched = Objects.requireNonNull(result).summary().getFirst().count();
         if (totalReportsMatched == null) {
             totalReportsMatched = 0;
         }
@@ -91,64 +85,16 @@ public class WeatherDataAccess {
         public record Summary(Integer count) {}
     }
 
-    public void streamSeaTemperatures(SeaTemperatureFilter seaTemperatureFilter, Consumer<List<WeatherReport>> batchConsumer) {
+    public void streamSeaTemperatures(BoundingBox boundingBox, Consumer<WeatherReport> weatherReportConsumer) {
         MongoDatabase database = mongoDBProvider.getMongoDatabase();
         MongoCollection<WeatherReport> collection = database.getCollection(COLLECTION_NAME, WeatherReport.class);
 
-        Bson filter = seaTemperatureFilter == null ? new Document() : switch (seaTemperatureFilter) {
-            case BoundingBox boundingBox -> {
-                // Normalize coordinates to handle Leaflet's infinite panning
-                double normalizedEast = normalizeLongitude(boundingBox.east());
-                double normalizedWest = normalizeLongitude(boundingBox.west());
-                double clampedNorth = Math.max(-90, Math.min(90, boundingBox.north()));
-                double clampedSouth = Math.max(-90, Math.min(90, boundingBox.south()));
-
-                // Check if bounding box crosses the International Date Line
-                if (normalizedWest > normalizedEast) {
-                    // Crosses date line - split into two queries
-                    if (log.isDebugEnabled()) {
-                        log.debug("Bounding box crosses International Date Line: west={}, east={}", normalizedWest, normalizedEast);
-                    }
-
-                    Bson westSide = geoWithin("position", new Polygon(List.of(
-                            new Position(normalizedWest, clampedSouth),
-                            new Position(180.0, clampedSouth),
-                            new Position(180.0, clampedNorth),
-                            new Position(normalizedWest, clampedNorth),
-                            new Position(normalizedWest, clampedSouth)
-                    )));
-
-                    Bson eastSide = geoWithin("position", new Polygon(List.of(
-                            new Position(-180.0, clampedSouth),
-                            new Position(normalizedEast, clampedSouth),
-                            new Position(normalizedEast, clampedNorth),
-                            new Position(-180.0, clampedNorth),
-                            new Position(-180.0, clampedSouth)
-                    )));
-
-                    yield or(westSide, eastSide);
-                } else {
-                    // Normal bounding box - doesn't cross date line
-                    yield geoWithin("position", new Polygon(List.of(
-                            new Position(normalizedWest, clampedSouth),
-                            new Position(normalizedEast, clampedSouth),
-                            new Position(normalizedEast, clampedNorth),
-                            new Position(normalizedWest, clampedNorth),
-                            new Position(normalizedWest, clampedSouth)
-                    )));
-                }
-            }
-            case DistanceFromCentre distanceFromCentre -> {
-                // Normalize coordinates for center point as well
-                double normalizedLongitude = normalizeLongitude(distanceFromCentre.longitude());
-                double clampedLatitude = Math.max(-90, Math.min(90, distanceFromCentre.latitude()));
-
-                yield geoWithinCenterSphere("position",
-                        normalizedLongitude, clampedLatitude,
-                        distanceFromCentre.metersRadius() / RADIUS_OF_EARTH_METERS);
-            }
-            default -> throw new IllegalArgumentException("Unsupported SeaTemperatureFilter type: " + seaTemperatureFilter.getClass().getName());
-        };
+        Bson filter = and(
+                gte("position.coordinates.0", boundingBox.west()),
+                lte("position.coordinates.0", boundingBox.east()),
+                gte("position.coordinates.1", boundingBox.south()),
+                lte("position.coordinates.1", boundingBox.north())
+        );
 
         Document projection = new Document()
                 .append("_id", 0)
@@ -164,39 +110,10 @@ public class WeatherDataAccess {
             log.trace("MongoDB explain plan for sea surface temperature query:\n{}", explain.toJson(JsonWriterSettings.builder().indent(true).build()));
         }
 
-        try (MongoCursor<WeatherReport> temperaturesRawCursor = collection
+        collection
                 .find(filter)
                 .projection(projection)
-                .batchSize(10)
-                .cursor()) {
-
-            List<WeatherReport> batch = new ArrayList<>();
-            while (temperaturesRawCursor.hasNext()) {
-                WeatherReport weatherReport = temperaturesRawCursor.next();
-                batch.add(weatherReport);
-
-                if (batch.size() >= pageSize) {
-                    batchConsumer.accept(new ArrayList<>(batch));
-                    batch.clear();
-                }
-            }
-            if (!batch.isEmpty()) {
-                batchConsumer.accept(new ArrayList<>(batch));
-            }
-        }
-    }
-    /**
-     * Normalizes longitude to the valid range [-180, 180]
-     * Handles Leaflet's infinite horizontal panning
-     */
-    private double normalizeLongitude(double longitude) {
-        // Handle multiple wraps around the world
-        longitude = longitude % 360;
-        if (longitude > 180) {
-            longitude -= 360;
-        } else if (longitude < -180) {
-            longitude += 360;
-        }
-        return longitude;
+                .batchSize(pageSize)
+                .forEach(weatherReportConsumer);
     }
 }

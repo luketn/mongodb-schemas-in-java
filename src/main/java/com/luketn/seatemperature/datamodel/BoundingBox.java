@@ -5,5 +5,4 @@ public record BoundingBox(
         Double south,
         Double east,
         Double west
-) implements SeaTemperatureFilter {
-}
+) { }
