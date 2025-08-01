@@ -64,9 +64,11 @@
     <h1>MongoDB Schemas in Java</h1>
     <div class="buyline">Demonstration using MongoDB sample database '<a href="https://www.mongodb.com/docs/guides/atlas/sample-data/">sample-weather</a>'</div>
 </div>
-<div id="map1" tabindex="0"></div>
+<pre id="accessible-data" style="display: none"></pre>
+<div id="map1" tabindex="0" aria-describedby="accessible-data"></div>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
 <script>
+    var accessibleData = document.getElementById("accessible-data");
     // --- Map setup ---
     var defaultCenter = [53.3899, -1.4678]; //London, UK
     var defaultZoom = 6;
@@ -86,6 +88,8 @@
     function fetchSeaTemps() {
         // Remove old markers
         markersLayer.clearLayers();
+        accessibleData.innerText = "Sea surface temperatures:\n";
+
         // Abort previous SSE if any
         if (currentSSE) currentSSE.close();
 
@@ -122,19 +126,24 @@
 
         // Open SSE connection
         currentSSE = new EventSource(url);
+        let countAccessible = 0;
         currentSSE.onmessage = function (event) {
             // Each event is a JSON array of SeaTemperature objects
             var temps = JSON.parse(event.data);
             temps.forEach(function (t) {
+                let label = `${t.temp.toFixed(2)}°C, Latitude: ${t.lat}, Longitude: ${t.lon}`;
+                if (countAccessible < 10) {
+                    accessibleData.innerText += label + "\n";
+                    countAccessible++;
+                }
                 var marker = L.circleMarker([t.lat, t.lon], {
-                    alt: `${t.temp.toFixed(2)}°C (Latitude: ${t.lat}, Longitude: ${t.lon})"`,
                     radius: 6,
                     fillColor: getColor(t.temp),
                     color: "#333",
                     weight: 1,
                     opacity: 1,
                     fillOpacity: 0.8
-                }).bindPopup("Temperature: " + t.temp.toFixed(2) + "°C");
+                }).bindPopup(label);
                 markersLayer.addLayer(marker);
             });
         };
