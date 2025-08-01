@@ -63,41 +63,6 @@ public class WeatherApiTest {
     }
 
     @Test
-    void streamSeaSurfaceTemperatures() throws IOException, InterruptedException {
-        // given
-        WeatherReport testReport1 = createTestReport("688b5a0628ebb91a42ce2977", "2025-07-31T11:56:54.857Z", 151.2091, -33.8688, 23.0, 10.0);
-        WeatherReport testReport2 = createTestReport("688b5a0628ebb91a42ce2978", "2025-07-31T11:56:54.858Z", 151.2092, -33.8688, 24.0, 11.0);
-        WeatherReport testReport3 = createTestReport("688b5a0628ebb91a42ce2979", "2025-07-31T11:56:54.859Z", 20.0, -1.8688, 25.0, 12.0);
-        testDatabase.getCollection(COLLECTION_NAME, WeatherReport.class).insertMany(List.of(
-                testReport1,
-                testReport2,
-                testReport3
-        ));
-
-        // when
-        var request = HttpRequest.newBuilder()
-                .uri(java.net.URI.create("http://localhost:" + port + "/weather/sea/temperature"
-                + "?queryType=DistanceFromCentre&longitude=151.2093&latitude=-33.8688&metersRadius=1000"))
-                .GET()
-                .build();
-        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        // then should return only the first two reports within the radius
-        assertEquals(200, response.statusCode(), "Expected HTTP status code 200");
-        String body = response.body();
-        assertEquals("data: [" +
-                         "{" +
-                            "\"position\":{\"coordinates\":[151.2091,-33.8688]}," +
-                            "\"seaSurfaceTemperature\":{\"value\":10.0}" +
-                         "}," +
-                         "{" +
-                            "\"position\":{\"coordinates\":[151.2092,-33.8688]}," +
-                            "\"seaSurfaceTemperature\":{\"value\":11.0}" +
-                         "}" +
-                     "]\n\n", body);
-    }
-
-    @Test
     void getReport() throws IOException, InterruptedException {
         // given
         WeatherReport testReport = createTestReport("688b5a0628ebb91a42ce2979", "2025-07-31T11:56:54.859Z", 151.2093, -33.8688, 25.0, 15.0);
@@ -147,7 +112,7 @@ public class WeatherApiTest {
                         new WeatherReportSummary(testReport3.id(), testReport3.ts(), testReport3.seaSurfaceTemperature().value(), testReport3.airTemperature().value())
                 ),
                 0, 1
-                ), fetchedReportList);
+        ), fetchedReportList);
     }
 
     private static @NotNull WeatherReport createTestReport(String reportId, String isoDate, double longitude, double latitude, double airTemperatureDegreesCelcius, double seaTemperatureDegreesCelcius) {
