@@ -264,4 +264,112 @@ public class WeatherApiStreamSeedDataTest {
 
         assertEquals(SeaTemperatureService.batch_size, seaTemperatures.size());
     }
+
+    @Test
+    void streamSeaSurfaceTemperatures_concurrentClients_partialAndFullReads() throws Exception {
+        // given a bounding box that covers a subset of the data
+        double south = 48.85387273165656;
+        double west = -12.980690002441408;
+        double north = 56.791853873960605;
+        double east = 13.386497497558596;
+
+        int clientCount = 600;
+
+        var uri = URI.create(
+                "http://localhost:" + port + "/weather/sea/temperature?" +
+                        "south=" + south +
+                        "&west=" + west +
+                        "&north=" + north +
+                        "&east=" + east
+        );
+
+        // when multiple clients connect concurrently
+        var futures = java.util.stream.IntStream.range(0, clientCount)
+                .mapToObj(threadNum -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                    try {
+                        var request = HttpRequest.newBuilder()
+                                .uri(uri)
+                                .timeout(Duration.ofSeconds(30))
+                                .GET()
+                                .build();
+                        var response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                        assertEquals(200, response.statusCode(), "Expected HTTP status code 200");
+
+                        InputStream inputStream = response.body();
+                        List<SeaTemperature> allSeaTemperatures = new java.util.ArrayList<>();
+                        int eventCount = 0;
+                        try (var reader = new BufferedReader(new InputStreamReader(inputStream), 256)) {
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                if (line.startsWith("data: ")) {
+                                    String sseEvent = line.substring(6);
+                                    List<SeaTemperature> seaTemperatures = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
+                                    allSeaTemperatures.addAll(seaTemperatures);
+                                    eventCount++;
+                                    // Odd threads disconnect after first batch
+                                    if (threadNum % 2 == 1 && eventCount == 1) break;
+                                }
+                            }
+                        }
+                        inputStream.close();
+                        return allSeaTemperatures;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }))
+                .toList();
+
+        var results = futures.stream()
+                .map(f -> {
+                    try {
+                        return f.get(10, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .toList();
+
+        // Fetch the expected full set of sea temperatures for this bounding box
+        var expectedRequest = HttpRequest.newBuilder()
+                .uri(uri)
+                .timeout(Duration.ofSeconds(30))
+                .GET()
+                .build();
+        var expectedResponse = client.send(expectedRequest, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, expectedResponse.statusCode());
+        String[] sseEvents = expectedResponse.body().split("\n\n");
+        List<SeaTemperature> expectedAll = new java.util.ArrayList<>();
+        for (String sseEvent : sseEvents) {
+            if (sseEvent.startsWith("data: ")) {
+                sseEvent = sseEvent.substring(6);
+            }
+            expectedAll.addAll(JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class));
+        }
+        int expectedTotal = expectedAll.size();
+
+        // Fetch the expected first batch
+        List<SeaTemperature> expectedFirstBatch = null;
+        for (String sseEvent : sseEvents) {
+            if (sseEvent.startsWith("data: ")) {
+                sseEvent = sseEvent.substring(6);
+            }
+            expectedFirstBatch = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
+            break;
+        }
+        int expectedBatchSize = expectedFirstBatch.size();
+
+        // Now check each thread's results
+        for (int i = 0; i < results.size(); i++) {
+            List<SeaTemperature> actual = results.get(i);
+            if (i % 2 == 0) {
+                // Even threads: should have all results
+                assertEquals(expectedTotal, actual.size(), "Thread " + i + " should have all sea temperatures");
+                assertEquals(expectedAll, actual, "Thread " + i + " should have the same sea temperatures as expected");
+            } else {
+                // Odd threads: should have only the first batch
+                assertEquals(expectedBatchSize, actual.size(), "Thread " + i + " should have only the first batch");
+                assertEquals(expectedFirstBatch, actual, "Thread " + i + " should have the same first batch as expected");
+            }
+        }
+    }
 }
