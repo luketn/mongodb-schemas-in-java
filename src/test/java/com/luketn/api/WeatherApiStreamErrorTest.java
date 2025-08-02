@@ -70,6 +70,8 @@ public class WeatherApiStreamErrorTest {
             body = body.substring(6);
         }
         SynchronousSse.ErrorEvent errorEvent = JsonUtil.fromJson(body, SynchronousSse.ErrorEvent.class);
+        assertEquals("500 INTERNAL_SERVER_ERROR", errorEvent.status(),
+                "Expected HTTP status code in error event");
         assertNotNull(errorEvent, "Error event should not be null");
         assertNotNull(errorEvent.id(), "Error event ID should not be null");
         assertEquals("An unexpected error occurred while streaming sea surface temperatures.", errorEvent.error(),
@@ -97,6 +99,8 @@ public class WeatherApiStreamErrorTest {
         }
         SynchronousSse.ErrorEvent errorEvent = JsonUtil.fromJson(body, SynchronousSse.ErrorEvent.class);
         assertNotNull(errorEvent, "Error event should not be null");
+        assertEquals("400 BAD_REQUEST", errorEvent.status(),
+                "Expected HTTP status code in error event");
         assertNotNull(errorEvent.id(), "Error event ID should not be null");
         assertEquals("For BoundingBox query type, north, south, east, and west must all be supplied.", errorEvent.error(),
                 "Expected error message for missing parameters");

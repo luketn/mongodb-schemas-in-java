@@ -1,11 +1,10 @@
 package com.luketn.util;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 
 import java.io.IOException;
 
@@ -41,22 +40,22 @@ public class SynchronousSse {
         }
     }
 
-    public void error(String clientMessage) {
-        error(null, clientMessage);
+    public void error(HttpStatusCode statusCode, String clientMessage) {
+        error(statusCode, null, clientMessage);
     }
 
-    public void error(Exception e, String clientMessage) {
+    public void error(HttpStatusCode statusCode, Exception e, String clientMessage) {
         // create a UID for the error, write this to the log with the full error stack trace. then write to the SSE output a general error message including the uid
         String errorUid = java.util.UUID.randomUUID().toString();
         log.error("SSE Error UID: {}", errorUid, e);
 
-        ErrorEvent errorEvent = new ErrorEvent(errorUid, clientMessage);
+        ErrorEvent errorEvent = new ErrorEvent(statusCode.toString(), errorUid, clientMessage);
         try {
             sendEvent(errorEvent);
         } catch (Exception _) {} // swallow errors trying to send the error event to the client, as we are already in an error state and the socket may be broken
     }
 
-    public record ErrorEvent(String id, String error) {}
+    public record ErrorEvent(String status, String id, String error) {}
 
     public static class SseBrokenPipe extends RuntimeException {}
 }

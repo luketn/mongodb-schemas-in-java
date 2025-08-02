@@ -7,6 +7,7 @@ import com.luketn.datamodel.mongodb.WeatherReportSummaryList;
 import com.luketn.seatemperature.datamodel.BoundingBox;
 import com.luketn.util.SynchronousSse;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,7 +36,8 @@ public class WeatherApi {
         var sse = SynchronousSse.forResponse(response);
 
         if (north == null || south == null || east == null || west == null) {
-            sse.error("For BoundingBox query type, north, south, east, and west must all be supplied.");
+            sse.error(HttpStatus.BAD_REQUEST, "For BoundingBox query type, north, south, east, and west must all be supplied.");
+            return;
         }
 
         try {
@@ -43,7 +45,7 @@ public class WeatherApi {
             seaTemperatureService.streamSeaTemperatures(boundingBox, sse::sendEvent);
         } catch (SynchronousSse.SseBrokenPipe _) { // ignore broken pipes in SSE
         } catch (Exception e) {
-            sse.error(e, "An unexpected error occurred while streaming sea surface temperatures.");
+            sse.error(HttpStatus.INTERNAL_SERVER_ERROR, e, "An unexpected error occurred while streaming sea surface temperatures.");
         }
     }
 
