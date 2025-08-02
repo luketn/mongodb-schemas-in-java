@@ -112,6 +112,26 @@ public class WeatherApiTest {
         ), fetchedReportList);
     }
 
+    @Test
+    void getFullReport() throws IOException, InterruptedException {
+        // given
+        WeatherReport fullReport = createFullReport();
+        testDatabase.getCollection(COLLECTION_NAME, WeatherReport.class).insertOne(fullReport);
+
+        // when
+        var request = HttpRequest.newBuilder()
+                .uri(java.net.URI.create("http://localhost:" + port + "/weather/report?id=" + fullReport.id()))
+                .GET()
+                .build();
+        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        // then
+        assertEquals(200, response.statusCode(), "Expected HTTP status code 200");
+        String body = response.body();
+        WeatherReport fetchedReport = JsonUtil.fromJson(body, WeatherReport.class);
+        assertEquals(fullReport, fetchedReport);
+    }
+
     private static @NotNull WeatherReport createTestReport(String reportId, String isoDate, double longitude, double latitude, double airTemperatureDegreesCelcius, double seaTemperatureDegreesCelcius) {
         return new WeatherReport(reportId, "Test Report",
                 Instant.parse(isoDate),
@@ -120,6 +140,32 @@ public class WeatherApiTest {
                 new WeatherReport.Measurement(airTemperatureDegreesCelcius, "9"),
                 null, null, null, null, null, null, null, null,
                 new WeatherReport.Measurement(seaTemperatureDegreesCelcius, "9")
+        );
+    }
+
+    private static WeatherReport createFullReport() {
+        return new WeatherReport(
+                "688b5a0628ebb91a42ce2979",
+                "Sydney Weather Report",
+                Instant.parse("2025-07-31T11:56:54.859Z"),
+                new WeatherReport.Position("Point", List.of(151.2093, -33.8688)),
+                10,
+                "CALL123",
+                "QC Process",
+                "Data Source",
+                "Type",
+                new WeatherReport.Measurement(25.0, "9"),
+                new WeatherReport.Measurement(15.0, "9"),
+                new WeatherReport.Measurement(1013.25, "9"),
+                new WeatherReport.Wind(new WeatherReport.Wind.Direction(180, "9"), "Type", new WeatherReport.Wind.Speed(5.0, "9")),
+                new WeatherReport.Visibility(new WeatherReport.Visibility.Distance(10000, "9"), new WeatherReport.Visibility.Variability("Stable", "9")),
+                new WeatherReport.SkyCondition(new WeatherReport.SkyCondition.CeilingHeight(3000, "9", "Determined"), "No"),
+                List.of("Section1", "Section2"),
+                new WeatherReport.PrecipitationEstimatedObservation("No Discrepancy", 0),
+                new WeatherReport.AtmosphericPressureChange(new WeatherReport.AtmosphericPressureChange.Tendency("Rising", "9"),
+                        new WeatherReport.AtmosphericPressureChange.Quantity(1013.25, "9"),
+                        new WeatherReport.AtmosphericPressureChange.Quantity(1012.50, "9")),
+                new WeatherReport.Measurement(22.0, "9")
         );
     }
 }

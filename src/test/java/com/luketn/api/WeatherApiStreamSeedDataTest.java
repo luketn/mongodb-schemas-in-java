@@ -1,5 +1,6 @@
 package com.luketn.api;
 
+import com.luketn.seatemperature.SeaTemperatureService;
 import com.luketn.seatemperature.datamodel.SeaTemperature;
 import com.luketn.util.JsonUtil;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,11 +18,17 @@ import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.luketn.dataaccess.mongodb.WeatherDataAccess.COLLECTION_NAME;
 import static org.junit.jupiter.api.Assertions.*;
@@ -213,5 +220,48 @@ public class WeatherApiStreamSeedDataTest {
             }
         }
         assertEquals(624, countTotalMeasurements, "Expected 989 sea surface temperature measurements in total");
+    }
+
+    @Test
+    void streamSeaSurfaceTemperatures_clientDisconnect_midStream() throws Exception {
+        // given a bounding box that will return many events
+        double south = -90;
+        double west = -180;
+        double north = 90;
+        double east = 180;
+
+        var request = HttpRequest.newBuilder()
+                .uri(URI.create(
+                        "http://localhost:" + port + "/weather/sea/temperature?" +
+                                "south=" + south +
+                                "&west=" + west +
+                                "&north=" + north +
+                                "&east=" + east
+                ))
+                .timeout(Duration.ofSeconds(30))
+                .GET()
+                .build();
+
+        // Open the connection and start reading the stream
+        var response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        assertEquals(200, response.statusCode(), "Expected HTTP status code 200");
+
+        InputStream inputStream = response.body();
+
+        //Create a line reader over the input stream and read the first sse event (line)
+        List<SeaTemperature> seaTemperatures;
+        try (var reader = new BufferedReader(new InputStreamReader(inputStream), 256)) { // read from the stream 256 bytes at a time
+            String sseEvent = reader.readLine();
+            assertTrue(sseEvent.startsWith("data: "), "Expected SSE event to start with 'data: '");
+            sseEvent = sseEvent.substring(6); // Remove "data: " prefix
+            seaTemperatures = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
+        }
+        // Simulate client disconnect
+        inputStream.close();
+
+        // Wait a bit to allow the server to attempt writing and hit the broken pipe
+        TimeUnit.MILLISECONDS.sleep(250);
+
+        assertEquals(SeaTemperatureService.batch_size, seaTemperatures.size());
     }
 }

@@ -39,7 +39,6 @@ public class WeatherApi {
             sse.error(HttpStatus.BAD_REQUEST, "For BoundingBox query type, north, south, east, and west must all be supplied.");
             return;
         }
-
         try {
             BoundingBox boundingBox = new BoundingBox(north, south, east, west);
             seaTemperatureService.streamSeaTemperatures(boundingBox, sse::sendEvent);
