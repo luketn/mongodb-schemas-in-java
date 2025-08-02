@@ -1,8 +1,7 @@
 package com.luketn.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.luketn.seatemperature.datamodel.SeaTemperature;
+import com.luketn.util.JsonUtil;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,12 +34,10 @@ import static org.testcontainers.shaded.org.apache.commons.lang3.ArrayUtils.toAr
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
 @ExtendWith(SpringExtension.class)
 @Testcontainers
-public class WeatherApiStreamTest {
+public class WeatherApiStreamSeedDataTest {
     @Container
     private static final MongoDBContainer mongoDBContainer = new MongoDBContainer("mongodb/mongodb-community-server:8.0.12-ubi9")
             .withClasspathResourceMapping("/seed-data","/tmp/seed-data", BindMode.READ_ONLY);
-
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @BeforeAll
     static void init() throws IOException, InterruptedException {
@@ -109,7 +106,7 @@ public class WeatherApiStreamTest {
             if (sseEvent.startsWith("data: ")) {
                 sseEvent = sseEvent.substring(6);
             }
-            List<SeaTemperature> seaTemperatures = objectMapper.readValue(sseEvent, objectMapper.getTypeFactory().constructCollectionType(List.class, SeaTemperature.class));
+            List<SeaTemperature> seaTemperatures = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
             for (SeaTemperature seaTemperature : seaTemperatures) {
                 countTotalMeasurements++;
 
@@ -157,7 +154,7 @@ public class WeatherApiStreamTest {
             if (sseEvent.startsWith("data: ")) {
                 sseEvent = sseEvent.substring(6);
             }
-            List<SeaTemperature> seaTemperatures = objectMapper.readValue(sseEvent, objectMapper.getTypeFactory().constructCollectionType(List.class, SeaTemperature.class));
+            List<SeaTemperature> seaTemperatures = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
             for (SeaTemperature seaTemperature : seaTemperatures) {
                 countTotalMeasurements++;
 
@@ -204,7 +201,7 @@ public class WeatherApiStreamTest {
             if (sseEvent.startsWith("data: ")) {
                 sseEvent = sseEvent.substring(6);
             }
-            List<SeaTemperature> seaTemperatures = objectMapper.readValue(sseEvent, objectMapper.getTypeFactory().constructCollectionType(List.class, SeaTemperature.class));
+            List<SeaTemperature> seaTemperatures = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
             for (SeaTemperature seaTemperature : seaTemperatures) {
                 countTotalMeasurements++;
 

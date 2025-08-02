@@ -12,9 +12,6 @@ import java.io.IOException;
 public class SynchronousSse {
     private static final Logger log = LoggerFactory.getLogger(SynchronousSse.class);
 
-    private static final ObjectMapper objectMapper = new ObjectMapper()
-            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
     private final HttpServletResponse response;
 
     public static SynchronousSse forResponse(HttpServletResponse response) {
@@ -37,7 +34,7 @@ public class SynchronousSse {
 
     public void sendEvent(Object data) {
         try {
-            response.getWriter().print("data: " + objectMapper.writeValueAsString(data) + "\n\n");
+            response.getWriter().print("data: " + JsonUtil.toJson(data) + "\n\n");
             response.flushBuffer();
         } catch (IOException e) {
             throw new SseBrokenPipe();
@@ -54,7 +51,9 @@ public class SynchronousSse {
         log.error("SSE Error UID: {}", errorUid, e);
 
         ErrorEvent errorEvent = new ErrorEvent(errorUid, clientMessage);
-        sendEvent(errorEvent);
+        try {
+            sendEvent(errorEvent);
+        } catch (Exception _) {} // swallow errors trying to send the error event to the client, as we are already in an error state and the socket may be broken
     }
 
     public record ErrorEvent(String id, String error) {}

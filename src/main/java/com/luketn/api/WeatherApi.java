@@ -31,6 +31,7 @@ public class WeatherApi {
             @RequestParam(value = "east", required = false) Double east,
             @RequestParam(value = "west", required = false) Double west,
             HttpServletResponse response) {
+
         var sse = SynchronousSse.forResponse(response);
 
         if (north == null || south == null || east == null || west == null) {
@@ -42,7 +43,7 @@ public class WeatherApi {
             seaTemperatureService.streamSeaTemperatures(boundingBox, sse::sendEvent);
         } catch (SynchronousSse.SseBrokenPipe _) { // ignore broken pipes in SSE
         } catch (Exception e) {
-            sse.error(e, "An error occurred while streaming sea surface temperatures.");
+            sse.error(e, "An unexpected error occurred while streaming sea surface temperatures.");
         }
     }
 

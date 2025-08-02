@@ -1,10 +1,9 @@
 package com.luketn.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.luketn.datamodel.mongodb.WeatherReport;
 import com.luketn.datamodel.mongodb.WeatherReportSummary;
 import com.luketn.datamodel.mongodb.WeatherReportSummaryList;
+import com.luketn.util.JsonUtil;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
@@ -46,8 +45,6 @@ public class WeatherApiTest {
         registry.add("mongodb-schema.dataaccess.mongodb.database-name", ()->"testdb");
     }
 
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-
     @LocalServerPort
     protected int port;
 
@@ -78,7 +75,7 @@ public class WeatherApiTest {
         // then
         assertEquals(200, response.statusCode(), "Expected HTTP status code 200");
         String body = response.body();
-        WeatherReport fetchedReport = objectMapper.readValue(body, WeatherReport.class);
+        WeatherReport fetchedReport = JsonUtil.fromJson(body, WeatherReport.class);
         assertEquals(testReport, fetchedReport);
     }
 
@@ -104,7 +101,7 @@ public class WeatherApiTest {
         // then
         assertEquals(200, response.statusCode(), "Expected HTTP status code 200");
         String body = response.body();
-        WeatherReportSummaryList fetchedReportList = objectMapper.readValue(body, WeatherReportSummaryList.class);
+        WeatherReportSummaryList fetchedReportList = JsonUtil.fromJson(body, WeatherReportSummaryList.class);
         assertEquals(new WeatherReportSummaryList(
                 List.of(
                         new WeatherReportSummary(testReport1.id(), testReport1.ts(), testReport1.seaSurfaceTemperature().value(), testReport1.airTemperature().value()),
