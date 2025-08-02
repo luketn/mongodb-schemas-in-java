@@ -57,12 +57,108 @@
             color: #e26a2a;
             text-decoration: underline;
         }
+
+        .location-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            font-size: 1rem;
+        }
+        .location-bar select, .location-bar input[type="number"] {
+            padding: 4px 8px;
+            font-size: 1rem;
+            border-radius: 4px;
+            border: 1px solid #bfc9d1;
+        }
+        .location-bar button {
+            padding: 4px 14px;
+            font-size: 1rem;
+            border-radius: 4px;
+            border: none;
+            background: #2a7ae2;
+            color: #fff;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .location-bar button:hover {
+            background: #1a5bb8;
+        }
+        .location-bar label {
+            margin-right: 2px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
 <div class="header-bar">
     <h1>MongoDB Schemas in Java</h1>
     <div class="buyline">Demonstration using MongoDB sample database '<a href="https://www.mongodb.com/docs/guides/atlas/sample-data/">sample-weather</a>'</div>
+</div>
+<div class="location-bar">
+    <select id="location-select">
+        <option value="your">Your location</option>
+        <option value="custom">Custom Location</option>
+        <option disabled>──────────────</option>
+        <option value="nyc" data-lat="40.7128" data-lon="-74.0060">New York City</option>
+        <option value="london" data-lat="51.5074" data-lon="-0.1278">London</option>
+        <option value="tokyo" data-lat="35.6895" data-lon="139.6917">Tokyo</option>
+        <option value="paris" data-lat="48.8566" data-lon="2.3522">Paris</option>
+        <option value="beijing" data-lat="39.9042" data-lon="116.4074">Beijing</option>
+        <option value="sydney" data-lat="-33.8688" data-lon="151.2093">Sydney</option>
+        <option value="moscow" data-lat="55.7558" data-lon="37.6173">Moscow</option>
+        <option value="cairo" data-lat="30.0444" data-lon="31.2357">Cairo</option>
+        <option value="mumbai" data-lat="19.0760" data-lon="72.8777">Mumbai</option>
+        <option value="rio" data-lat="-22.9068" data-lon="-43.1729">Rio de Janeiro</option>
+        <option value="losangeles" data-lat="34.0522" data-lon="-118.2437">Los Angeles</option>
+        <option value="berlin" data-lat="52.5200" data-lon="13.4050">Berlin</option>
+        <option value="singapore" data-lat="1.3521" data-lon="103.8198">Singapore</option>
+        <option value="toronto" data-lat="43.6532" data-lon="-79.3832">Toronto</option>
+        <option value="madrid" data-lat="40.4168" data-lon="-3.7038">Madrid</option>
+        <option value="rome" data-lat="41.9028" data-lon="12.4964">Rome</option>
+        <option value="istanbul" data-lat="41.0082" data-lon="28.9784">Istanbul</option>
+        <option value="seoul" data-lat="37.5665" data-lon="126.9780">Seoul</option>
+        <option value="bangkok" data-lat="13.7563" data-lon="100.5018">Bangkok</option>
+        <option value="buenosaires" data-lat="-34.6037" data-lon="-58.3816">Buenos Aires</option>
+        <option value="johannesburg" data-lat="-26.2041" data-lon="28.0473">Johannesburg</option>
+        <option value="santiago" data-lat="-33.4489" data-lon="-70.6693">Santiago</option>
+        <option value="dubai" data-lat="25.2048" data-lon="55.2708">Dubai</option>
+        <option value="delhi" data-lat="28.6139" data-lon="77.2090">Delhi</option>
+        <option value="shanghai" data-lat="31.2304" data-lon="121.4737">Shanghai</option>
+        <option value="hongkong" data-lat="22.3193" data-lon="114.1694">Hong Kong</option>
+        <option value="chicago" data-lat="41.8781" data-lon="-87.6298">Chicago</option>
+        <option value="sanfrancisco" data-lat="37.7749" data-lon="-122.4194">San Francisco</option>
+        <option value="boston" data-lat="42.3601" data-lon="-71.0589">Boston</option>
+        <option value="vienna" data-lat="48.2082" data-lon="16.3738">Vienna</option>
+        <option value="athens" data-lat="37.9838" data-lon="23.7275">Athens</option>
+        <option value="amsterdam" data-lat="52.3676" data-lon="4.9041">Amsterdam</option>
+        <option value="prague" data-lat="50.0755" data-lon="14.4378">Prague</option>
+        <option value="warsaw" data-lat="52.2297" data-lon="21.0122">Warsaw</option>
+        <option value="helsinki" data-lat="60.1699" data-lon="24.9384">Helsinki</option>
+        <option value="stockholm" data-lat="59.3293" data-lon="18.0686">Stockholm</option>
+        <option value="oslo" data-lat="59.9139" data-lon="10.7522">Oslo</option>
+        <option value="copenhagen" data-lat="55.6761" data-lon="12.5683">Copenhagen</option>
+        <option value="zurich" data-lat="47.3769" data-lon="8.5417">Zurich</option>
+        <option value="lisbon" data-lat="38.7223" data-lon="-9.1393">Lisbon</option>
+        <option value="budapest" data-lat="47.4979" data-lon="19.0402">Budapest</option>
+        <option value="brussels" data-lat="50.8503" data-lon="4.3517">Brussels</option>
+        <option value="dublin" data-lat="53.3498" data-lon="-6.2603">Dublin</option>
+        <option value="vienna" data-lat="48.2082" data-lon="16.3738">Vienna</option>
+        <option value="sofia" data-lat="42.6977" data-lon="23.3219">Sofia</option>
+        <option value="bucharest" data-lat="44.4268" data-lon="26.1025">Bucharest</option>
+        <option value="ankara" data-lat="39.9334" data-lon="32.8597">Ankara</option>
+        <option value="mexicocity" data-lat="19.4326" data-lon="-99.1332">Mexico City</option>
+        <option value="jakarta" data-lat="-6.2088" data-lon="106.8456">Jakarta</option>
+        <option value="manila" data-lat="14.5995" data-lon="120.9842">Manila</option>
+        <option value="lagos" data-lat="6.5244" data-lon="3.3792">Lagos</option>
+        <option value="karachi" data-lat="24.8607" data-lon="67.0011">Karachi</option>
+    </select>
+    <label for="lat-input">Lat</label>
+    <input id="lat-input" type="number" step="0.0001" min="-90" max="90" style="width: 90px;">
+    <label for="lon-input">Lon</label>
+    <input id="lon-input" type="number" step="0.0001" min="-180" max="180" style="width: 100px;">
+    <button id="go-btn">Go!</button>
 </div>
 <pre id="accessible-data" style="display: none"></pre>
 <div id="map1" tabindex="0" aria-describedby="accessible-data"></div>
@@ -88,7 +184,7 @@
     function fetchSeaTemps() {
         // Remove old markers
         markersLayer.clearLayers();
-        accessibleData.innerText = "Sea surface temperatures:\n";
+        accessibleData.innerText = "Sea surface temperatures (first 10):\n";
 
         // Abort previous SSE if any
         if (currentSSE) currentSSE.close();
@@ -163,32 +259,136 @@
     }
 
 
+    // --- Location controls logic ---
+    var locationSelect = document.getElementById('location-select');
+    var latInput = document.getElementById('lat-input');
+    var lonInput = document.getElementById('lon-input');
+    var goBtn = document.getElementById('go-btn');
+    var userLocation = null; // {lat, lon}
+    var ignoreMapMove = false; // Prevent feedback loop
+
+    // List of city options for quick lookup
+    var cityOptions = {};
+    Array.from(locationSelect.options).forEach(function(opt) {
+        if (opt.dataset && opt.dataset.lat && opt.dataset.lon) {
+            cityOptions[opt.value] = {
+                lat: parseFloat(opt.dataset.lat),
+                lon: parseFloat(opt.dataset.lon)
+            };
+        }
+    });
+
+    // Set lat/lon input values and optionally move map
+    function setLatLonInputs(lat, lon, moveMap) {
+        latInput.value = Number(lat).toFixed(4);
+        lonInput.value = Number(lon).toFixed(4);
+        if (moveMap) {
+            ignoreMapMove = true;
+            mymap.setView([lat, lon], mymap.getZoom());
+            setTimeout(function() { ignoreMapMove = false; }, 300);
+        }
+    }
+
+    // When dropdown changes
+    locationSelect.addEventListener('change', function() {
+        var val = locationSelect.value;
+        if (val === 'your') {
+            if (userLocation) {
+                setLatLonInputs(userLocation.lat, userLocation.lon, true);
+            } else {
+                // fallback to default center
+                setLatLonInputs(defaultCenter[0], defaultCenter[1], true);
+            }
+        } else if (val === 'custom') {
+            // Do not move map, just allow editing
+            latInput.removeAttribute('readonly');
+            lonInput.removeAttribute('readonly');
+        } else if (cityOptions[val]) {
+            var city = cityOptions[val];
+            setLatLonInputs(city.lat, city.lon, true);
+        }
+        // For custom, allow editing; for others, lock editing
+        if (val === 'custom') {
+            latInput.removeAttribute('readonly');
+            lonInput.removeAttribute('readonly');
+        } else {
+            latInput.setAttribute('readonly', 'readonly');
+            lonInput.setAttribute('readonly', 'readonly');
+        }
+    });
+
+    // On Go! button click, move map to input lat/lon
+    goBtn.addEventListener('click', function() {
+        var lat = parseFloat(latInput.value);
+        var lon = parseFloat(lonInput.value);
+        if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+            ignoreMapMove = true;
+            mymap.setView([lat, lon], mymap.getZoom());
+            setTimeout(function() { ignoreMapMove = false; }, 300);
+            locationSelect.value = 'custom';
+            latInput.removeAttribute('readonly');
+            lonInput.removeAttribute('readonly');
+        }
+    });
+
+    // Also allow pressing Enter in lat/lon fields to trigger Go!
+    latInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') goBtn.click();
+    });
+    lonInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') goBtn.click();
+    });
+
+    // When map moves, update lat/lon inputs (unless ignoreMapMove)
+    mymap && mymap.on('moveend', function() {
+        if (ignoreMapMove) return;
+        var center = mymap.getCenter();
+        setLatLonInputs(center.lat, center.lng, false);
+        // If not custom, set dropdown to custom
+        if (locationSelect.value !== 'custom') {
+            locationSelect.value = 'custom';
+            latInput.removeAttribute('readonly');
+            lonInput.removeAttribute('readonly');
+        }
+    });
+
     // --- Initial load ---
     function initializeMap(position, zoom) {
         mymap.setView(position, zoom);
+        setLatLonInputs(position[0], position[1], false);
         fetchSeaTemps();
 
-        //hook up moveend event to refetch data
         mymap.on('moveend', function () {
             fetchSeaTemps();
         });
     }
 
     if (navigator.geolocation) {
-        // Try to get user's location
         navigator.geolocation.getCurrentPosition(
             function (pos) {
                 var lat = pos.coords.latitude;
                 var lon = pos.coords.longitude;
+                userLocation = {lat: lat, lon: lon};
                 initializeMap([lat, lon], defaultZoom);
+                locationSelect.value = 'your';
+                setLatLonInputs(lat, lon, false);
+                latInput.setAttribute('readonly', 'readonly');
+                lonInput.setAttribute('readonly', 'readonly');
             },
             function (error) {
-                console.error('Geolocation error:', error);
                 initializeMap(defaultCenter, defaultZoom);
+                setLatLonInputs(defaultCenter[0], defaultCenter[1], false);
+                locationSelect.value = 'custom';
+                latInput.removeAttribute('readonly');
+                lonInput.removeAttribute('readonly');
             }
         );
     } else {
         initializeMap(defaultCenter, defaultZoom);
+        setLatLonInputs(defaultCenter[0], defaultCenter[1], false);
+        locationSelect.value = 'custom';
+        latInput.removeAttribute('readonly');
+        lonInput.removeAttribute('readonly');
     }
 </script>
 </body>
