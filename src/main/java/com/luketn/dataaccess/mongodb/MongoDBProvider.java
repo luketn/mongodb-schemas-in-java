@@ -37,14 +37,6 @@ public class MongoDBProvider {
     }
 
     public MongoDatabase getMongoDatabase() {
-        init();
-        if (mongoDatabase == null) {
-            throw new IllegalStateException("MongoDB connection is not initialized.");
-        }
-        return mongoDatabase;
-    }
-
-    private void init() {
         if (mongoClient == null || mongoDatabase == null) {
             synchronized (MongoDBProvider.class) {
                 if (mongoClient == null || mongoDatabase == null) {
@@ -59,6 +51,7 @@ public class MongoDBProvider {
                 }
             }
         }
+        return mongoDatabase;
     }
 
     public static MongoClientSettings createClientSettings(String connectionString) {
