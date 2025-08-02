@@ -39,10 +39,10 @@ public class WeatherApi {
 
     @GetMapping("/sea/temperature")
     public void streamSeaSurfaceTemperatures(
-            @RequestParam(value = "north", required = false) Double north,
             @RequestParam(value = "south", required = false) Double south,
-            @RequestParam(value = "east", required = false) Double east,
+            @RequestParam(value = "north", required = false) Double north,
             @RequestParam(value = "west", required = false) Double west,
+            @RequestParam(value = "east", required = false) Double east,
             HttpServletResponse response) {
 
         var sse = SynchronousSse.forResponse(response);
@@ -52,7 +52,7 @@ public class WeatherApi {
             return;
         }
         try {
-            BoundingBox boundingBox = new BoundingBox(north, south, east, west);
+            BoundingBox boundingBox = new BoundingBox(south, north, west, east);
             seaTemperatureService.streamSeaTemperatures(boundingBox, sse::sendEvent);
         } catch (SynchronousSse.SseBrokenPipe _) { // ignore broken pipes in SSE
         } catch (Exception e) {

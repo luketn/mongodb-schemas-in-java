@@ -1,11 +1,14 @@
 package com.luketn.api;
 
 import com.luketn.seatemperature.SeaTemperatureService;
+import com.luketn.seatemperature.datamodel.BoundingBox;
 import com.luketn.seatemperature.datamodel.SeaTemperature;
 import com.luketn.util.JsonUtil;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -17,6 +20,7 @@ import org.testcontainers.containers.ExecConfig;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.shaded.org.apache.commons.lang3.RandomUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,8 +31,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.luketn.dataaccess.mongodb.WeatherDataAccess.COLLECTION_NAME;
 import static org.junit.jupiter.api.Assertions.*;
@@ -265,111 +275,153 @@ public class WeatherApiStreamSeedDataTest {
         assertEquals(SeaTemperatureService.batch_size, seaTemperatures.size());
     }
 
+    private static final Logger clientLogger = LoggerFactory.getLogger("ClientTestLog");
     @Test
     void streamSeaSurfaceTemperatures_concurrentClients_partialAndFullReads() throws Exception {
-        // given a bounding box that covers a subset of the data
-        double south = 48.85387273165656;
-        double west = -12.980690002441408;
-        double north = 56.791853873960605;
-        double east = 13.386497497558596;
-
-        int clientCount = 600;
-
-        var uri = URI.create(
-                "http://localhost:" + port + "/weather/sea/temperature?" +
-                        "south=" + south +
-                        "&west=" + west +
-                        "&north=" + north +
-                        "&east=" + east
+        List<BoundingBox> batches = List.of(
+                new BoundingBox(-90.0, 90.0, -180.0, 180.0),
+                new BoundingBox(50.7362718024489, 51.25485822311229, 0.8490318059921266, 2.496981024742127), // small bounding box
+                new BoundingBox(48.85387273165656, 56.791853873960605, -12.980690002441408, 13.386497497558596) // large bounding box
         );
 
-        // when multiple clients connect concurrently
-        var futures = java.util.stream.IntStream.range(0, clientCount)
-                .mapToObj(threadNum -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
-                    try {
-                        var request = HttpRequest.newBuilder()
-                                .uri(uri)
-                                .timeout(Duration.ofSeconds(30))
-                                .GET()
-                                .build();
-                        var response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-                        assertEquals(200, response.statusCode(), "Expected HTTP status code 200");
+        // Define the number of concurrent clients and request spread
+        final int client_count = 50;
+        final double millis_request_spread = 100d;
 
-                        InputStream inputStream = response.body();
-                        List<SeaTemperature> allSeaTemperatures = new java.util.ArrayList<>();
-                        int eventCount = 0;
-                        try (var reader = new BufferedReader(new InputStreamReader(inputStream), 256)) {
-                            String line;
-                            while ((line = reader.readLine()) != null) {
-                                if (line.startsWith("data: ")) {
-                                    String sseEvent = line.substring(6);
-                                    List<SeaTemperature> seaTemperatures = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
-                                    allSeaTemperatures.addAll(seaTemperatures);
-                                    eventCount++;
-                                    // Odd threads disconnect after first batch
-                                    if (threadNum % 2 == 1 && eventCount == 1) break;
+        Instant startTime = Instant.now();
+        AtomicLong dataReceived = new AtomicLong(0);
+        AtomicInteger requestCount = new AtomicInteger(0);
+
+        for (BoundingBox batch : batches) {
+
+            // given a bounding box that covers a subset of the data
+            double south = batch.south();
+            double west = batch.west();
+            double north = batch.north();
+            double east = batch.east();
+
+            var uri = URI.create(
+                    "http://localhost:" + port + "/weather/sea/temperature?" +
+                    "south=" + south +
+                    "&north=" + north +
+                    "&west=" + west +
+                    "&east=" + east
+            );
+
+            // call the API to warm up the server and ensure the data is loaded
+            var warmupRequest = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .timeout(Duration.ofSeconds(30))
+                    .GET()
+                    .build();
+            var warmupResponse = client.send(warmupRequest, HttpResponse.BodyHandlers.ofString());
+            var warmupBody = warmupResponse.body();
+            assertEquals(200, warmupResponse.statusCode(), "Expected HTTP status code 200 for warmup request");
+            assertNotNull(warmupBody, "Warmup response body should not be null");
+
+            // Use ExecutorService with virtual threads (Java 21+ stable)
+            List<Future<List<SeaTemperature>>> futures = new java.util.ArrayList<>(client_count);
+            try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                for (int threadNum = 0; threadNum < client_count; threadNum++) {
+                    final int tn = threadNum;
+                    futures.add(executor.submit(() -> {
+                        Thread.currentThread().setName("sse-client-vthread-" + tn);
+                        try {
+                            int sleepMillis = ((int) (tn / (double) client_count * millis_request_spread)) + RandomUtils.nextInt(50, 100); //spread out the requests over 1 second + some random jitter
+                            TimeUnit.MILLISECONDS.sleep(sleepMillis);
+                            var request = HttpRequest.newBuilder()
+                                    .uri(uri)
+                                    .timeout(Duration.ofSeconds(30))
+                                    .GET()
+                                    .build();
+                            var response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                            assertEquals(200, response.statusCode(), "Expected HTTP status code 200");
+
+                            InputStream inputStream = response.body();
+                            List<SeaTemperature> allSeaTemperatures = new java.util.ArrayList<>();
+                            try (var reader = new BufferedReader(new InputStreamReader(inputStream), 256)) {
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    if (line.startsWith("data: ")) {
+                                        dataReceived.addAndGet(line.length());
+
+                                        String sseEvent = line.substring(6);
+                                        List<SeaTemperature> seaTemperatures = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
+                                        allSeaTemperatures.addAll(seaTemperatures);
+
+                                        // Odd threads disconnect after first batch
+                                        if (tn % 2 == 1) break;
+                                    }
                                 }
                             }
+                            inputStream.close();
+
+                            requestCount.incrementAndGet();
+                            clientLogger.info("Thread {} slept for {} before receiving {} sea temperatures", tn, sleepMillis, allSeaTemperatures.size());
+                            return allSeaTemperatures;
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
                         }
-                        inputStream.close();
-                        return allSeaTemperatures;
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                }))
-                .toList();
-
-        var results = futures.stream()
-                .map(f -> {
-                    try {
-                        return f.get(10, TimeUnit.SECONDS);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                })
-                .toList();
-
-        // Fetch the expected full set of sea temperatures for this bounding box
-        var expectedRequest = HttpRequest.newBuilder()
-                .uri(uri)
-                .timeout(Duration.ofSeconds(30))
-                .GET()
-                .build();
-        var expectedResponse = client.send(expectedRequest, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, expectedResponse.statusCode());
-        String[] sseEvents = expectedResponse.body().split("\n\n");
-        List<SeaTemperature> expectedAll = new java.util.ArrayList<>();
-        for (String sseEvent : sseEvents) {
-            if (sseEvent.startsWith("data: ")) {
-                sseEvent = sseEvent.substring(6);
+                    }));
+                }
             }
-            expectedAll.addAll(JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class));
-        }
-        int expectedTotal = expectedAll.size();
 
-        // Fetch the expected first batch
-        List<SeaTemperature> expectedFirstBatch = null;
-        for (String sseEvent : sseEvents) {
-            if (sseEvent.startsWith("data: ")) {
-                sseEvent = sseEvent.substring(6);
+            List<List<SeaTemperature>> results = new java.util.ArrayList<>(client_count);
+            for (Future<List<SeaTemperature>> future : futures) {
+                results.add(future.get(10, TimeUnit.SECONDS));
             }
-            expectedFirstBatch = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
-            break;
-        }
-        int expectedBatchSize = expectedFirstBatch.size();
 
-        // Now check each thread's results
-        for (int i = 0; i < results.size(); i++) {
-            List<SeaTemperature> actual = results.get(i);
-            if (i % 2 == 0) {
-                // Even threads: should have all results
-                assertEquals(expectedTotal, actual.size(), "Thread " + i + " should have all sea temperatures");
-                assertEquals(expectedAll, actual, "Thread " + i + " should have the same sea temperatures as expected");
-            } else {
-                // Odd threads: should have only the first batch
-                assertEquals(expectedBatchSize, actual.size(), "Thread " + i + " should have only the first batch");
-                assertEquals(expectedFirstBatch, actual, "Thread " + i + " should have the same first batch as expected");
+            // Fetch the expected full set of sea temperatures for this bounding box
+            var expectedRequest = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .timeout(Duration.ofSeconds(30))
+                    .GET()
+                    .build();
+            var expectedResponse = client.send(expectedRequest, HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, expectedResponse.statusCode());
+            String[] sseEvents = expectedResponse.body().split("\n\n");
+            List<SeaTemperature> expectedAll = new java.util.ArrayList<>();
+            for (String sseEvent : sseEvents) {
+                if (sseEvent.startsWith("data: ")) {
+                    sseEvent = sseEvent.substring(6);
+                }
+                expectedAll.addAll(JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class));
+            }
+            int expectedTotal = expectedAll.size();
+
+            // Fetch the expected first batch
+            List<SeaTemperature> expectedFirstBatch = null;
+            for (String sseEvent : sseEvents) {
+                if (sseEvent.startsWith("data: ")) {
+                    sseEvent = sseEvent.substring(6);
+                }
+                expectedFirstBatch = JsonUtil.fromJsonArray(sseEvent, SeaTemperature.class);
+                break;
+            }
+            int expectedBatchSize = expectedFirstBatch.size();
+
+            // Now check each thread's results
+            for (int i = 0; i < results.size(); i++) {
+                List<SeaTemperature> actual = results.get(i);
+                if (i % 2 == 0) {
+                    // Even threads: should have all results
+                    assertEquals(expectedTotal, actual.size(), "Thread " + i + " should have all sea temperatures");
+                    assertEquals(expectedAll, actual, "Thread " + i + " should have the same sea temperatures as expected");
+                } else {
+                    // Odd threads: should have only the first batch
+                    assertEquals(expectedBatchSize, actual.size(), "Thread " + i + " should have only the first batch");
+                    assertEquals(expectedFirstBatch, actual, "Thread " + i + " should have the same first batch as expected");
+                }
             }
         }
+        Duration duration = Duration.between(startTime, Instant.now());
+        Duration durationPerRequest = duration.dividedBy(requestCount.get());
+        clientLogger.info("---------------------------------");
+        clientLogger.info("------ Client Test Summary ------");
+        clientLogger.info("---------------------------------");
+        clientLogger.info("Performed {} total requests in {}ms ({}ms/request avg) using {} concurrent clients in {} batches (each with different URIs)", requestCount, duration.toMillis(), durationPerRequest.toMillis(), client_count, batches.size());
+        clientLogger.info("Total data received across all clients: {}KB", dataReceived.get() / 1024);
+        clientLogger.info("---------------------------------");
     }
 }
+
