@@ -100,6 +100,19 @@
             width: 1px;
             white-space: nowrap;
         }
+
+        #error-box {
+            display: none;
+            max-width: 1200px;
+            margin: 0 auto 24px auto;
+            padding: 16px;
+            border-radius: 8px;
+            background: #ffeaea;
+            color: #b8001f;
+            border: 1px solid #e26a2a;
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -177,6 +190,7 @@
     <pre id="accessible-data" class="visually-hidden" aria-live="polite" aria-description="Map temperatures" tabindex="0"></pre>
 </div>
 <div id="weatherMapDiv" tabindex="0"></div>
+<div id="error-box" style="display:none; max-width:1200px; margin:0 auto 24px auto; padding:16px; border-radius:8px; background:#ffeaea; color:#b8001f; border:1px solid #e26a2a; font-size:1.1rem; font-weight:500;"></div>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
 <script>
     var accessibleDataElement = document.getElementById("accessible-data");
@@ -230,9 +244,25 @@
         window.currentPage = page;
     }
 
+    function showErrorBox(details) {
+        var box = document.getElementById('error-box');
+        if (details) {
+            box.innerHTML = `<strong>Server Error</strong><br>
+                <span>${details.error ? details.error : 'An error occurred.'}</span><br>
+                <span style="font-size:0.97em;font-weight:400;">UID: <code>${details.id || ''}</code> &nbsp; Status: <code>${details.status || ''}</code></span>`;
+            box.style.display = 'block';
+        } else {
+            box.style.display = 'none';
+            box.innerHTML = '';
+        }
+    }
+
     function fetchSeaTemps() {
         // Remove old markers
         markersLayer.clearLayers();
+
+        // Hide error box on new fetch
+        showErrorBox(null);
 
         // Abort previous SSE if any
         if (currentSSE) currentSSE.close();
@@ -276,6 +306,10 @@
         currentSSE.onmessage = function (event) {
             // Each event is a JSON array of SeaTemperature objects
             var temps = JSON.parse(event.data);
+            if (temps && temps.error) {
+                showErrorBox(temps);
+                return;
+            }
             temps.forEach(function (t) {
                 let label = `${t.temp.toFixed(2)}°C, Latitude: ${t.lat}, Longitude: ${t.lon}`;
                 window.temperatureDataForScreenReaders.push(label);
