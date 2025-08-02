@@ -12,7 +12,7 @@
             padding: 0;
         }
 
-        #map1 {
+        #weatherMapDiv {
             height: 600px;
             width: 98vw;
             max-width: 1200px;
@@ -23,7 +23,7 @@
         }
 
         @media (max-width: 700px) {
-            #map1 {
+            #weatherMapDiv {
                 height: 350px;
             }
         }
@@ -105,7 +105,7 @@
 <body>
 <div class="header-bar">
     <h1>MongoDB Schemas in Java</h1>
-    <div class="buyline">Demonstration using MongoDB sample database '<a href="https://www.mongodb.com/docs/guides/atlas/sample-data/">sample-weather</a>'</div>
+    <div class="buyline">Demonstration using MongoDB sample database <a href="https://www.mongodb.com/docs/guides/atlas/sample-data/">sample-weather</a></div>
 </div>
 <div class="location-bar">
     <select id="location-select">
@@ -172,37 +172,59 @@
     <button id="go-btn">Go!</button>
 </div>
 <div id="accessible-control-panel" class="visually-hidden" aria-description="Accessible control panel for screen readers">
-    <button id="accessible-data-next" class="visually-hidden" aria-label="Next page of temperatures" tabindex="0" onclick="showPageOfTemperaturesToScreenReader(window.currentPage++)">Next</button>
-    <button id="accessible-data-prev" class="visually-hidden" aria-label="Previous page of temperatures" tabindex="0" onclick="showPageOfTemperaturesToScreenReader(window.currentPage--)">Previous</button>
+    <button id="accessible-data-next" class="visually-hidden" aria-label="Next page of temperatures" tabindex="0" onclick="showPageOfTemperaturesToScreenReader(window.currentPage + 1)">Next</button>
+    <button id="accessible-data-prev" class="visually-hidden" aria-label="Previous page of temperatures" tabindex="0" onclick="showPageOfTemperaturesToScreenReader(window.currentPage - 1)">Previous</button>
     <pre id="accessible-data" class="visually-hidden" aria-live="polite" aria-description="Map temperatures" tabindex="0"></pre>
 </div>
-<div id="map1" tabindex="0"></div>
+<div id="weatherMapDiv" tabindex="0"></div>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
 <script>
     var accessibleDataElement = document.getElementById("accessible-data");
     // --- Map setup ---
     var defaultCenter = [53.3899, -1.4678]; //London, UK
     var defaultZoom = 6;
-    var mymap = L.map("map1", {})
-    L.control.scale({metric: true, imperial: false, position: 'bottomleft'}).addTo(mymap);
+    var weatherMap = L.map("weatherMapDiv", {})
+    L.control.scale({metric: true, imperial: false, position: 'bottomleft'}).addTo(weatherMap);
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(mymap);
+    }).addTo(weatherMap);
 
-    var markersLayer = L.layerGroup().addTo(mymap);
+    var markersLayer = L.layerGroup().addTo(weatherMap);
 
     // --- SSE fetch and marker update ---
     var currentSSE = null;
 
     window.currentPage = 0;
     window.temperatureDataForScreenReaders = [];
+    const screenReaderDataPageSize = 50;
+
     function showPageOfTemperaturesToScreenReader(page) {
-        if (page < 0 || page >= Math.ceil(window.temperatureDataForScreenReaders.length / 50)) {
-            return; // Invalid page
+        if (page < 0) {
+            page = 0;
         }
-        let pageOfResults = window.temperatureDataForScreenReaders.splice(50 * page, 50);
+        let lastPage = Math.ceil(window.temperatureDataForScreenReaders.length / screenReaderDataPageSize);
+        if (page >= lastPage) {
+            page = lastPage;
+        }
+        let prevButtonElement = document.getElementById('accessible-data-prev');
+        let nextButtonElement = document.getElementById('accessible-data-next');
+        if (page === 0) {
+            prevButtonElement.disabled = true;
+        } else {
+            prevButtonElement.disabled = false;
+        }
+        if (page >= lastPage - 1) {
+            nextButtonElement.disabled = true;
+        } else {
+            nextButtonElement.disabled = false;
+        }
+
+        let pageOfResults = window.temperatureDataForScreenReaders.slice(
+            page * screenReaderDataPageSize,
+            (page + 1) * screenReaderDataPageSize
+        );
         let accessibleDataText = pageOfResults.join('\n');
         accessibleDataElement.innerText = `Sea Surface Temperatures (page ${page}):\n${accessibleDataText}`;
         window.currentPage = page;
@@ -235,7 +257,7 @@
             };
         }
 
-        const bounds = getNormalizedBounds(mymap);
+        const bounds = getNormalizedBounds(weatherMap);
 
         // Build query string
         var params = [];
@@ -270,8 +292,10 @@
         };
         currentSSE.onerror = function () {
             currentSSE.close();
+
+            // the onerror triggers when the SSE connection is closed
+            showPageOfTemperaturesToScreenReader(0);
         };
-        showPageOfTemperaturesToScreenReader(0);
     }
 
     // --- Color scale for temperature ---
@@ -310,7 +334,7 @@
         lonInput.value = Number(lon).toFixed(4);
         if (moveMap) {
             ignoreMapMove = true;
-            mymap.setView([lat, lon], mymap.getZoom());
+            weatherMap.setView([lat, lon], weatherMap.getZoom());
             setTimeout(function() { ignoreMapMove = false; }, 300);
         }
     }
@@ -349,7 +373,7 @@
         var lon = parseFloat(lonInput.value);
         if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
             ignoreMapMove = true;
-            mymap.setView([lat, lon], mymap.getZoom());
+            weatherMap.setView([lat, lon], weatherMap.getZoom());
             setTimeout(function() { ignoreMapMove = false; }, 300);
             locationSelect.value = 'custom';
             latInput.removeAttribute('readonly');
@@ -366,9 +390,9 @@
     });
 
     // When map moves, update lat/lon inputs (unless ignoreMapMove)
-    mymap && mymap.on('moveend', function() {
+    weatherMap && weatherMap.on('moveend', function() {
         if (ignoreMapMove) return;
-        var center = mymap.getCenter();
+        var center = weatherMap.getCenter();
         setLatLonInputs(center.lat, center.lng, false);
         // If not custom, set dropdown to custom
         if (locationSelect.value !== 'custom') {
@@ -380,11 +404,11 @@
 
     // --- Initial load ---
     function initializeMap(position, zoom) {
-        mymap.setView(position, zoom);
+        weatherMap.setView(position, zoom);
         setLatLonInputs(position[0], position[1], false);
         fetchSeaTemps();
 
-        mymap.on('moveend', function () {
+        weatherMap.on('moveend', function () {
             fetchSeaTemps();
         });
     }
