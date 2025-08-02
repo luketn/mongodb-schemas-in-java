@@ -46,6 +46,7 @@ public class AccessLog extends OncePerRequestFilter {
             int eventCount = sseStats.get().eventCount();
             statusCode = sseStats.get().lastStatusCode().value();
             suffix = "(sse: " + eventCount + " event" + (eventCount == 1 ? "" : "s") + ", status: " + statusCode + ")" + " " + timeTakenSuffix;
+            sseStats.remove();
         } else {
             statusCode = response.getStatus();
             suffix = "(status: " + statusCode + ") " + timeTakenSuffix;
