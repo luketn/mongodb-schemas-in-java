@@ -172,9 +172,9 @@
     <button id="go-btn">Go!</button>
 </div>
 <div id="accessible-control-panel" class="visually-hidden" aria-description="Accessible control panel for screen readers">
-    <pre id="accessible-data" class="visually-hidden" aria-live="polite" aria-description="Map temperatures" tabindex="0"></pre>
     <button id="accessible-data-next" class="visually-hidden" aria-label="Next page of temperatures" tabindex="0" onclick="showPageOfTemperaturesToScreenReader(window.currentPage++)">Next</button>
     <button id="accessible-data-prev" class="visually-hidden" aria-label="Previous page of temperatures" tabindex="0" onclick="showPageOfTemperaturesToScreenReader(window.currentPage--)">Previous</button>
+    <pre id="accessible-data" class="visually-hidden" aria-live="polite" aria-description="Map temperatures" tabindex="0"></pre>
 </div>
 <div id="map1" tabindex="0"></div>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
