@@ -204,7 +204,7 @@
         }
         let pageOfResults = window.temperatureDataForScreenReaders.splice(50 * page, 50);
         let accessibleDataText = pageOfResults.join('\n');
-        accessibleDataElement.innerText = `"Sea Surface Temperatures:\n${accessibleDataText}`;
+        accessibleDataElement.innerText = `Sea Surface Temperatures (page ${page}):\n${accessibleDataText}`;
         window.currentPage = page;
     }
 
