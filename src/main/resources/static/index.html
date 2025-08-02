@@ -89,6 +89,17 @@
             margin-right: 2px;
             font-weight: 500;
         }
+        .visually-hidden {
+            border: 0;
+            clip: rect(0 0 0 0);
+            height: auto;
+            margin: 0;
+            overflow: hidden;
+            padding: 0;
+            position: absolute;
+            width: 1px;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -96,6 +107,7 @@
     <h1>MongoDB Schemas in Java</h1>
     <div class="buyline">Demonstration using MongoDB sample database '<a href="https://www.mongodb.com/docs/guides/atlas/sample-data/">sample-weather</a>'</div>
 </div>
+<pre id="accessible-data" class="visually-hidden" aria-live="polite" aria-description="map temperatures" tabindex="1"></pre>
 <div class="location-bar">
     <select id="location-select">
         <option value="your">Your location</option>
@@ -160,8 +172,7 @@
     <input id="lon-input" type="number" step="0.0001" min="-180" max="180" style="width: 100px;">
     <button id="go-btn">Go!</button>
 </div>
-<pre id="accessible-data" style="display: none"></pre>
-<div id="map1" tabindex="0" aria-describedby="accessible-data"></div>
+<div id="map1" tabindex="0"></div>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
 <script>
     var accessibleData = document.getElementById("accessible-data");
