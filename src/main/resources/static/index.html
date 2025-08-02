@@ -107,7 +107,6 @@
     <h1>MongoDB Schemas in Java</h1>
     <div class="buyline">Demonstration using MongoDB sample database '<a href="https://www.mongodb.com/docs/guides/atlas/sample-data/">sample-weather</a>'</div>
 </div>
-<pre id="accessible-data" class="visually-hidden" aria-live="polite" aria-description="map temperatures" tabindex="1"></pre>
 <div class="location-bar">
     <select id="location-select">
         <option value="your">Your location</option>
@@ -172,10 +171,15 @@
     <input id="lon-input" type="number" step="0.0001" min="-180" max="180" style="width: 100px;">
     <button id="go-btn">Go!</button>
 </div>
+<div id="accessible-control-panel" class="visually-hidden" aria-description="Accessible control panel for screen readers">
+    <pre id="accessible-data" class="visually-hidden" aria-live="polite" aria-description="Map temperatures" tabindex="0"></pre>
+    <button id="accessible-data-next" class="visually-hidden" aria-label="Next page of temperatures" tabindex="0" onclick="showPageOfTemperaturesToScreenReader(window.currentPage++)">Next</button>
+    <button id="accessible-data-prev" class="visually-hidden" aria-label="Previous page of temperatures" tabindex="0" onclick="showPageOfTemperaturesToScreenReader(window.currentPage--)">Previous</button>
+</div>
 <div id="map1" tabindex="0"></div>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
 <script>
-    var accessibleData = document.getElementById("accessible-data");
+    var accessibleDataElement = document.getElementById("accessible-data");
     // --- Map setup ---
     var defaultCenter = [53.3899, -1.4678]; //London, UK
     var defaultZoom = 6;
@@ -192,10 +196,21 @@
     // --- SSE fetch and marker update ---
     var currentSSE = null;
 
+    window.currentPage = 0;
+    window.temperatureDataForScreenReaders = [];
+    function showPageOfTemperaturesToScreenReader(page) {
+        if (page < 0 || page >= Math.ceil(window.temperatureDataForScreenReaders.length / 50)) {
+            return; // Invalid page
+        }
+        let pageOfResults = window.temperatureDataForScreenReaders.splice(50 * page, 50);
+        let accessibleDataText = pageOfResults.join('\n');
+        accessibleDataElement.innerText = `"Sea Surface Temperatures:\n${accessibleDataText}`;
+        window.currentPage = page;
+    }
+
     function fetchSeaTemps() {
         // Remove old markers
         markersLayer.clearLayers();
-        accessibleData.innerText = "Sea surface temperatures (first 10):\n";
 
         // Abort previous SSE if any
         if (currentSSE) currentSSE.close();
@@ -231,18 +246,17 @@
         params.push("east=" + bounds.east);
         var url = "/weather/sea/temperature?" + params.join("&");
 
+        //Collect accessible data for screen readers
+        window.temperatureDataForScreenReaders = [];
+
         // Open SSE connection
         currentSSE = new EventSource(url);
-        let countAccessible = 0;
         currentSSE.onmessage = function (event) {
             // Each event is a JSON array of SeaTemperature objects
             var temps = JSON.parse(event.data);
             temps.forEach(function (t) {
                 let label = `${t.temp.toFixed(2)}°C, Latitude: ${t.lat}, Longitude: ${t.lon}`;
-                if (countAccessible < 10) {
-                    accessibleData.innerText += label + "\n";
-                    countAccessible++;
-                }
+                window.temperatureDataForScreenReaders.push(label);
                 var marker = L.circleMarker([t.lat, t.lon], {
                     radius: 6,
                     fillColor: getColor(t.temp),
@@ -257,6 +271,7 @@
         currentSSE.onerror = function () {
             currentSSE.close();
         };
+        showPageOfTemperaturesToScreenReader(0);
     }
 
     // --- Color scale for temperature ---
