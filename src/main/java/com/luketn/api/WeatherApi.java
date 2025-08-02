@@ -25,6 +25,18 @@ public class WeatherApi {
         this.seaTemperatureService = seaTemperatureService;
     }
 
+    @GetMapping("/report")
+    public WeatherReport getReport(@RequestParam(value = "id") String id) {
+        WeatherReport report = weatherDataAccess.getReport(id);
+        return report;
+    }
+
+    @GetMapping("/report/list")
+    public WeatherReportSummaryList listReports(@RequestParam(value = "page", required = false, defaultValue = "0") int page) {
+        WeatherReportSummaryList weatherReportList = weatherDataAccess.listReports(page);
+        return weatherReportList;
+    }
+
     @GetMapping("/sea/temperature")
     public void streamSeaSurfaceTemperatures(
             @RequestParam(value = "north", required = false) Double north,
@@ -48,15 +60,4 @@ public class WeatherApi {
         }
     }
 
-    @GetMapping("/report")
-    public WeatherReport getReport(@RequestParam(value = "id") String id) {
-        WeatherReport report = weatherDataAccess.getReport(id);
-        return report;
-    }
-
-    @GetMapping("/report/list")
-    public WeatherReportSummaryList listReports(@RequestParam(value = "page", required = false, defaultValue = "0") int page) {
-        WeatherReportSummaryList weatherReportList = weatherDataAccess.listReports(page);
-        return weatherReportList;
-    }
 }
